@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, GenerateContentResponse, Modality, Type } from "@google/genai";
 import { type ImagePart, type GroundingChunk, type ImageAspectRatio, type ImageResolution, type WatermarkOptions, type WatermarkPosition } from '../types';
 
@@ -41,8 +40,8 @@ function createImagePart(base64Image: string, mimeType: string): ImagePart {
 async function getGeminiClient(): Promise<GoogleGenAI> {
     const apiKey = currentEffectiveApiKey || process.env.API_KEY; // Fallback to process.env.API_KEY
     if (!apiKey) {
-      // Throw an error if no API key is available from any source
-      throw new Error("API Key is not configured. Please enter a manual key or ensure process.env.API_KEY is set.");
+      // Throw a more specific error if no API key is available.
+      throw new Error("Lỗi cấu hình API Key: Không tìm thấy khóa API. Vui lòng thiết lập khóa thủ công hoặc đảm bảo biến môi trường API_KEY được định cấu hình.");
     }
     return new GoogleGenAI({ apiKey });
 }
@@ -77,7 +76,7 @@ export async function extractPromptFromImage(base64Image: string, mimeType: stri
         const groundingUrls = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
         return { text, groundingUrls };
     } catch (error: any) {
-        console.error("Error extracting prompt from image:", error);
+        console.error("Error extracting prompt from image:", error); // Keep comprehensive error logging
         throw new Error(`Failed to extract prompt: ${error.message || 'Unknown error'}`);
     }
 }
@@ -190,7 +189,7 @@ export async function generateProductImage(
         return { imageUrl, groundingUrls };
 
     } catch (error: any) {
-        console.error("Error generating product image:", error);
+        console.error("Error generating product image:", error); // Keep comprehensive error logging
         throw new Error(`Failed to generate image: ${error.message || 'Unknown error'}`);
     }
 }
