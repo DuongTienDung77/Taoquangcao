@@ -47,6 +47,28 @@ async function getGeminiClient(): Promise<GoogleGenAI> {
 }
 
 /**
+ * Helper function to provide more user-friendly error messages based on API error content.
+ * @param error The error object.
+ * @returns A friendly error message string.
+ */
+function getFriendlyErrorMessage(error: any): string {
+  const errorMessage = typeof error === 'string' ? error : error.message || 'Unknown error';
+  if (typeof errorMessage === 'string') {
+    const lowerCaseMessage = errorMessage.toLowerCase();
+    if (lowerCaseMessage.includes('quota exceeded') || lowerCaseMessage.includes('resource exhausted')) {
+      return "Đã đạt giới hạn hạn ngạch (quota) cho mô hình này. Vui lòng kiểm tra trang hạn ngạch trong tài khoản Google Cloud của bạn (ai.google.dev/gemini-api/docs/billing) hoặc thử lại sau.";
+    }
+    if (lowerCaseMessage.includes('rate limit exceeded')) {
+      return "Đã đạt giới hạn tốc độ yêu cầu. Vui lòng thử lại sau vài giây.";
+    }
+    if (lowerCaseMessage.includes('api key') || lowerCaseMessage.includes('authentication')) {
+      return "Lỗi khóa API: Khóa API không hợp lệ hoặc thiếu. Vui lòng kiểm tra lại khóa API của bạn.";
+    }
+  }
+  return `Đã xảy ra lỗi: ${errorMessage}`; // Fallback to original message with a prefix
+}
+
+/**
  * Extracts a descriptive prompt from an image for advertising purposes.
  * @param base64Image The base64 encoded image data of the product.
  * @param mimeType The MIME type of the product image.
@@ -77,7 +99,7 @@ export async function extractPromptFromImage(base64Image: string, mimeType: stri
         return { text, groundingUrls };
     } catch (error: any) {
         console.error("Error extracting prompt from image:", error); // Keep comprehensive error logging
-        throw new Error(`Failed to extract prompt: ${error.message || 'Unknown error'}`);
+        throw new Error(getFriendlyErrorMessage(error));
     }
 }
 
@@ -190,6 +212,6 @@ export async function generateProductImage(
 
     } catch (error: any) {
         console.error("Error generating product image:", error); // Keep comprehensive error logging
-        throw new Error(`Failed to generate image: ${error.message || 'Unknown error'}`);
+        throw new Error(getFriendlyErrorMessage(error));
     }
 }
