@@ -34,38 +34,11 @@ export interface PresetPrompt {
   prompt: string;
 }
 
-/** Represents supported video aspect ratios. */
-export type VideoAspectRatio = '16:9' | '9:16';
-
-/** Represents supported video resolutions. */
-export type VideoResolution = '720p' | '1080p';
-
 /** Represents supported image aspect ratios. */
 export type ImageAspectRatio = '1:1' | '3:4' | '4:3' | '9:16' | '16:9';
 
 /** Represents supported image resolutions (conceptual, for prompt guidance). */
 export type ImageResolution = '2K' | '4K' | '8K';
-
-/** Represents the AI Studio utility functions available on the window object. */
-export interface AIStudio {
-  hasSelectedApiKey: () => Promise<boolean>;
-  openSelectKey: () => Promise<void>;
-}
-
-// Extend the window interface to include aistudio properties
-// As this file already has an import, it's considered a module.
-// We can directly augment the Window interface without 'declare global'.
-interface Window {
-  // Use the AIStudio interface for consistency and to resolve declaration conflicts.
-  aistudio: AIStudio;
-}
-
-/** Represents suggestions for enhancing a generated video with audio and text. */
-export interface VideoEnhancements {
-  suggestedMusic: string;
-  subtitles: string[];
-  voiceOverScript: string;
-}
 
 /** Represents the type of watermark. */
 export type WatermarkType = 'text' | 'image';

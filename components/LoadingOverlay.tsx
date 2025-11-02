@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 
 interface LoadingOverlayProps {
@@ -14,7 +15,7 @@ const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ message }) => {
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
         <p className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">{message}</p>
-        <p className="text-sm text-gray-600 dark:text-gray-400">Quá trình này có thể mất một chút thời gian, đặc biệt là đối với việc tạo video.</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400">Quá trình này có thể mất một chút thời gian.</p>
       </div>
     </div>
   );

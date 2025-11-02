@@ -1,13 +1,13 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { fileToBase64 } from './utils/imageUtils';
-import { extractPromptFromImage, generateProductImage, generateProductVideo, generateVideoEnhancements, generateSpeechFromText, setEffectiveApiKey } from './services/geminiService';
+import { extractPromptFromImage, generateProductImage, setEffectiveApiKey } from './services/geminiService';
 import Button from './components/Button';
 import ImageUploadCard from './components/ImageUploadCard';
 import LoadingOverlay from './components/LoadingOverlay';
 import OutputDisplay from './components/OutputDisplay';
-import ApiKeyWarning from './components/ApiKeyWarning';
 import { PRESET_PROMPTS, IMAGE_RESOLUTION_PRESETS } from './constants';
-import { type GroundingChunk, type VideoAspectRatio, type VideoResolution, type AIStudio, type ImageAspectRatio, type ImageResolution, type VideoEnhancements, type WatermarkOptions, type WatermarkType, type WatermarkPosition } from './types';
+import { type GroundingChunk, type ImageAspectRatio, type ImageResolution, type WatermarkOptions, type WatermarkType, type WatermarkPosition } from './types';
 
 const App: React.FC = () => {
   const [productImageFile, setProductImageFile] = useState<File | null>(null);
@@ -22,28 +22,17 @@ const App: React.FC = () => {
   const [backgroundImageBase64, setBackgroundImageBase64] = useState<string | null>(null); // New state for background image
   const [backgroundImageMimeType, setBackgroundImageMimeType] = useState<string | null>(null); // New state for background image
 
-  const [referenceImageFile, setReferenceImageFile] = useState<File | null>(null);
-  const [referenceImageBase64, setReferenceImageBase64] = useState<string | null>(null);
-  const [referenceImageMimeType, setReferenceImageMimeType] = useState<string | null>(null);
-
   const [textPrompt, setTextPrompt] = useState<string>('');
   const [selectedPreset, setSelectedPreset] = useState<string>('');
 
   const [generatedOutputUrl, setGeneratedOutputUrl] = useState<string | null>(null);
-  const [outputMediaType, setOutputMediaType] = useState<'image' | 'video' | null>(null);
+  const [outputMediaType, setOutputMediaType] = useState<'image' | null>(null);
   const [groundingUrls, setGroundingUrls] = useState<GroundingChunk[] | null>(null);
-  const [videoEnhancements, setVideoEnhancements] = useState<VideoEnhancements | null>(null); // New state for video enhancements
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingMessage, setLoadingMessage] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   
-  // Renamed from isVeoApiKeySelected to be more precise about platform-managed keys
-  const [hasPlatformApiKeySelected, setHasPlatformApiKeySelected] = useState<boolean>(false); 
-
-  const [videoResolution, setVideoResolution] = useState<VideoResolution>('720p');
-  const [videoAspectRatio, setVideoAspectRatio] = useState<VideoAspectRatio>('16:9');
-
   const [imageResolution, setImageResolution] = useState<ImageResolution>('2K');
   const [imageAspectRatio, setImageAspectRatio] = useState<ImageAspectRatio>('1:1');
 
@@ -67,24 +56,6 @@ const App: React.FC = () => {
   }, [hasManualApiKeyStored]);
 
 
-  const checkPlatformApiKeyStatus = useCallback(async () => {
-    if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
-      try {
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        setHasPlatformApiKeySelected(hasKey);
-      } catch (e) {
-        console.error("Error checking platform API key status:", e);
-        setHasPlatformApiKeySelected(false);
-        setError("Không thể kiểm tra trạng thái khóa API của nền tảng. Vui lòng làm mới và thử lại.");
-      }
-    } else {
-      console.warn("window.aistudio is not available. API key selection for Veo models may not function.");
-      // If aistudio is not available, we assume platform-specific key selection is not possible
-      // and thus Veo models that explicitly require it might not work.
-      setHasPlatformApiKeySelected(false); 
-    }
-  }, []);
-
   useEffect(() => {
     // Load manual API key from localStorage on mount
     const storedKey = localStorage.getItem('manualApiKey');
@@ -96,9 +67,6 @@ const App: React.FC = () => {
       // If no manual key, ensure service uses process.env.API_KEY
       setEffectiveApiKey(process.env.API_KEY);
     }
-
-    checkPlatformApiKeyStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run only on mount
 
   const handleProductImageChange = useCallback(async (file: File | null) => {
@@ -153,7 +121,6 @@ const App: React.FC = () => {
     }
     setGeneratedOutputUrl(null);
     setGroundingUrls(null);
-    setVideoEnhancements(null); // Clear video enhancements
   }, []);
 
   const handleModelImageChange = useCallback(async (file: File | null) => { // New handler for model image
@@ -189,24 +156,6 @@ const App: React.FC = () => {
     } else {
       setBackgroundImageBase64(null);
       setBackgroundImageMimeType(null);
-    }
-  }, []);
-
-  const handleReferenceImageChange = useCallback(async (file: File | null) => {
-    setReferenceImageFile(file);
-    if (file) {
-      try {
-        const { base64, mimeType } = await fileToBase64(file);
-        setReferenceImageBase64(base64);
-        setReferenceImageMimeType(mimeType);
-      } catch (e) {
-        setError("Không thể xử lý hình ảnh tham chiếu.");
-        setReferenceImageBase64(null);
-        setReferenceImageMimeType(null);
-      }
-    } else {
-      setReferenceImageBase64(null);
-      setReferenceImageMimeType(null);
     }
   }, []);
 
@@ -247,52 +196,67 @@ const App: React.FC = () => {
     setGeneratedOutputUrl(null);
     setOutputMediaType(null);
     setGroundingUrls(null);
-    setVideoEnhancements(null); // Clear video enhancements
     setError(null);
   }, []);
 
-  const handleExtractPrompt = useCallback(async (isProductImage: boolean) => {
+  const handleExtractPrompt = useCallback(async () => {
     clearOutput();
     setError(null);
-    let imageBase64: string | null = null;
-    let mimeType: string | null = null;
 
     if (!isAnyApiKeyEffectivelyAvailable()) {
       setError('Không có khóa API. Vui lòng nhập khóa thủ công hoặc đảm bảo process.env.API_KEY được đặt.');
       return;
     }
 
-    if (isProductImage && productImageBase64 && productImageMimeType) {
-      imageBase64 = productImageBase64;
-      mimeType = productImageMimeType;
-      setLoadingMessage('Đang phân tích hình ảnh sản phẩm và tạo gợi ý...');
-    } else if (!isProductImage && referenceImageBase64 && referenceImageMimeType) {
-      imageBase64 = referenceImageBase64;
-      mimeType = referenceImageMimeType;
-      setLoadingMessage('Đang phân tích hình ảnh tham chiếu và trích xuất gợi ý...');
-    } else {
-      setError(`Vui lòng tải lên hình ảnh ${isProductImage ? 'sản phẩm' : 'tham chiếu'} trước.`);
+    if (!productImageBase64 || !productImageMimeType) {
+      setError(`Vui lòng tải lên hình ảnh sản phẩm trước.`);
       return;
     }
 
+    setLoadingMessage('Đang phân tích hình ảnh sản phẩm và tạo gợi ý...');
     setIsLoading(true);
     try {
-      // Ensure imageBase64 and mimeType are not null before passing to extractPromptFromImage
-      if (imageBase64 && mimeType) {
-        const { text, groundingUrls: newGroundingUrls } = await extractPromptFromImage(imageBase64, mimeType);
-        setTextPrompt(text);
-        setGroundingUrls(newGroundingUrls);
-      } else {
-        setError('Dữ liệu hình ảnh bị thiếu.');
-      }
+      const { text, groundingUrls: newGroundingUrls } = await extractPromptFromImage(productImageBase64, productImageMimeType);
+      setTextPrompt(text);
+      setGroundingUrls(newGroundingUrls);
     } catch (e: any) {
-      setError(e.message || 'Không thể trích xuất gợi ý.');
+      setError(e.message || 'Không thể trích xuất gợi ý từ ảnh sản phẩm.');
       console.error(e);
     } finally {
       setIsLoading(false);
       setLoadingMessage('');
     }
-  }, [clearOutput, productImageBase64, productImageMimeType, referenceImageBase64, referenceImageMimeType, isAnyApiKeyEffectivelyAvailable]);
+  }, [clearOutput, productImageBase64, productImageMimeType, isAnyApiKeyEffectivelyAvailable]);
+
+  const handleExtractPromptFromBackground = useCallback(async () => {
+    clearOutput();
+    setError(null);
+
+    if (!isAnyApiKeyEffectivelyAvailable()) {
+      setError('Không có khóa API. Vui lòng nhập khóa thủ công hoặc đảm bảo process.env.API_KEY được đặt.');
+      return;
+    }
+
+    if (!backgroundImageBase64 || !backgroundImageMimeType) {
+      setError(`Vui lòng tải lên hình ảnh bối cảnh trước.`);
+      return;
+    }
+
+    setLoadingMessage('Đang phân tích ảnh bối cảnh và tạo gợi ý...');
+    setIsLoading(true);
+    try {
+      const { text, groundingUrls: newGroundingUrls } = await extractPromptFromImage(backgroundImageBase64, backgroundImageMimeType);
+      setTextPrompt(text);
+      setGroundingUrls(newGroundingUrls);
+    } catch (e: any) {
+      setError(e.message || 'Không thể trích xuất gợi ý từ ảnh bối cảnh.');
+      console.error(e);
+    } finally {
+      setIsLoading(false);
+      setLoadingMessage('');
+    }
+  }, [clearOutput, backgroundImageBase64, backgroundImageMimeType, isAnyApiKeyEffectivelyAvailable]);
+
 
   const handleGenerateImage = useCallback(async () => {
     clearOutput();
@@ -382,105 +346,6 @@ const App: React.FC = () => {
     isAnyApiKeyEffectivelyAvailable
   ]);
 
-  const handleSelectPlatformApiKey = useCallback(async () => {
-    setError(null);
-    if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
-      try {
-        await window.aistudio.openSelectKey();
-        setHasPlatformApiKeySelected(true); // Assume success as per instructions
-        setEffectiveApiKey(process.env.API_KEY); // Re-align service API key with potentially new platform key
-        setError(null); // Clear previous API key errors
-      } catch (e) {
-        console.error("Error opening API key selection:", e);
-        setError("Không thể mở hộp thoại chọn khóa API.");
-        setHasPlatformApiKeySelected(false);
-      }
-    } else {
-      setError("Tiện ích chọn khóa API không khả dụng. Vui lòng đảm bảo bạn đang ở trong môi trường chính xác.");
-    }
-  }, []);
-
-  const handlePlayVoiceOver = useCallback(async (script: string) => {
-    setError(null);
-    if (!isAnyApiKeyEffectivelyAvailable()) {
-      setError('Không có khóa API. Vui lòng nhập khóa thủ công hoặc đảm bảo process.env.API_KEY được đặt.');
-      return;
-    }
-    setLoadingMessage('Đang tạo và phát thuyết minh...');
-    setIsLoading(true);
-    try {
-      await generateSpeechFromText(script);
-    } catch (e: any) {
-      setError(e.message || 'Không thể tạo và phát thuyết minh.');
-      console.error(e);
-    } finally {
-      setIsLoading(false);
-      setLoadingMessage('');
-    }
-  }, [isAnyApiKeyEffectivelyAvailable]);
-
-  const handleGenerateVideo = useCallback(async () => {
-    clearOutput();
-    setError(null);
-
-    // Veo models have specific API key requirements via platform selection
-    if (!hasPlatformApiKeySelected) {
-      setError('Các mô hình tạo video yêu cầu khóa API đã chọn qua nền tảng. Vui lòng chọn một khóa.');
-      return;
-    }
-
-    if (!productImageBase64 || !productImageMimeType) {
-      setError('Vui lòng tải lên hình ảnh sản phẩm cho khung hình bắt đầu video.');
-      return;
-    }
-    if (!textPrompt.trim()) {
-      setError('Vui lòng nhập gợi ý cho video hoặc trích xuất một gợi ý.');
-      return;
-    }
-
-    setLoadingMessage('Đang tạo video quảng cáo (quá trình này có thể mất vài phút)...');
-    setIsLoading(true);
-    try {
-      const { videoUrl, groundingUrls: newGroundingUrls } = await generateProductVideo(
-        textPrompt,
-        productImageBase64,
-        productImageMimeType,
-        referenceImageBase64, // Use reference image as end frame if available
-        referenceImageMimeType,
-        videoResolution,
-        videoAspectRatio
-      );
-      setGeneratedOutputUrl(videoUrl);
-      setOutputMediaType('video');
-      setGroundingUrls(newGroundingUrls);
-
-      // After video is generated, get enhancements
-      setLoadingMessage('Đang đề xuất âm nhạc, phụ đề và kịch bản thuyết minh...');
-      const enhancements = await generateVideoEnhancements(textPrompt);
-      setVideoEnhancements(enhancements);
-
-    } catch (e: any) {
-      if (e.message && e.message.includes("Requested entity was not found.")) {
-        setHasPlatformApiKeySelected(false); // Reset key status if invalid
-      }
-      setError(e.message || 'Không thể tạo video.');
-      console.error(e);
-    } finally {
-      setIsLoading(false);
-      setLoadingMessage('');
-    }
-  }, [
-    clearOutput,
-    hasPlatformApiKeySelected,
-    productImageBase64,
-    productImageMimeType,
-    textPrompt,
-    referenceImageBase64,
-    referenceImageMimeType,
-    videoResolution,
-    videoAspectRatio
-  ]);
-
   const handleSaveManualApiKey = useCallback(() => {
     if (manualApiKeyInput.trim()) {
       localStorage.setItem('manualApiKey', manualApiKeyInput.trim());
@@ -499,9 +364,8 @@ const App: React.FC = () => {
     setManualApiKeyInput(''); // Clear input field
     setEffectiveApiKey(process.env.API_KEY); // Reset to environment variable
     setError(null);
-    checkPlatformApiKeyStatus(); // Re-check platform status after clearing manual key
-    alert('Khóa API thủ công đã bị xóa. Bây giờ ứng dụng sẽ sử dụng khóa API từ biến môi trường hoặc yêu cầu chọn khóa cho Veo.');
-  }, [checkPlatformApiKeyStatus]);
+    alert('Khóa API thủ công đã bị xóa. Bây giờ ứng dụng sẽ sử dụng khóa API từ biến môi trường.');
+  }, []);
 
 
   return (
@@ -511,7 +375,7 @@ const App: React.FC = () => {
       <header className="w-full max-w-5xl text-center py-8 mb-8">
         <h1 className="text-4xl font-extrabold text-blue-600 dark:text-blue-400 mb-2">AI Tạo Quảng Cáo Sản Phẩm</h1>
         <p className="text-lg text-gray-700 dark:text-gray-300">
-          Tận dụng AI để tạo hình ảnh và video quảng cáo ấn tượng cho sản phẩm của bạn.
+          Tận dụng AI để tạo hình ảnh quảng cáo ấn tượng cho sản phẩm của bạn.
         </p>
       </header>
 
@@ -528,7 +392,6 @@ const App: React.FC = () => {
           <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">1. Quản lý Khóa API</h2>
           <p className="text-gray-700 dark:text-gray-300 text-sm">
             Bạn có thể nhập khóa API Gemini của mình thủ công để sử dụng. Khóa này sẽ được ưu tiên hơn biến môi trường `process.env.API_KEY`.
-            Đối với các mô hình Veo, bạn vẫn cần chọn khóa API của nền tảng (nếu có yêu cầu cụ thể).
           </p>
           <div className="flex flex-col sm:flex-row gap-2">
             <input
@@ -588,20 +451,9 @@ const App: React.FC = () => {
           />
         </div>
 
-        {/* Existing Reference Image Card (shifted to 5th) */}
-        <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
-          <ImageUploadCard
-            label="5. Tải lên hình ảnh tham chiếu (Tùy chọn)"
-            imageFile={referenceImageFile}
-            onImageChange={handleReferenceImageChange}
-            isLoading={isLoading}
-            buttonLabel="Chọn ảnh tham chiếu"
-          />
-        </div>
-
         <div className="flex flex-col gap-4">
           <label htmlFor="preset-prompts" className="block text-xl font-semibold text-gray-800 dark:text-gray-100">
-            6. Chọn gợi ý có sẵn hoặc tự viết
+            5. Chọn gợi ý có sẵn hoặc tự viết
           </label>
           <select
             id="preset-prompts"
@@ -627,18 +479,18 @@ const App: React.FC = () => {
 
           <div className="flex flex-wrap gap-4 justify-center">
             <Button
-              onClick={() => handleExtractPrompt(true)}
+              onClick={handleExtractPrompt}
               disabled={isLoading || !productImageBase64 || !isAnyApiKeyEffectivelyAvailable()}
               variant="secondary"
             >
               Trích xuất gợi ý từ ảnh sản phẩm
             </Button>
             <Button
-              onClick={() => handleExtractPrompt(false)}
-              disabled={isLoading || !referenceImageBase64 || !isAnyApiKeyEffectivelyAvailable()}
+              onClick={handleExtractPromptFromBackground}
+              disabled={isLoading || !backgroundImageBase64 || !isAnyApiKeyEffectivelyAvailable()}
               variant="secondary"
             >
-              Trích xuất gợi ý từ ảnh tham chiếu
+              Trích xuất gợi ý từ ảnh bối cảnh
             </Button>
           </div>
         </div>
@@ -654,7 +506,7 @@ const App: React.FC = () => {
               disabled={isLoading}
               className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
             />
-            <label htmlFor="enable-watermark" className="cursor-pointer">7. Cài đặt Watermark (Chỉ dành cho hình ảnh)</label>
+            <label htmlFor="enable-watermark" className="cursor-pointer">6. Cài đặt Watermark</label>
           </h2>
 
           {watermarkEnabled && (
@@ -761,8 +613,8 @@ const App: React.FC = () => {
 
 
         <div className="flex flex-col gap-4">
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">8. Tạo quảng cáo của bạn</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">7. Tạo quảng cáo của bạn</h2>
+          <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
             {/* Image Generation Section */}
             <div className="flex flex-col gap-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-700">
               <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Tạo hình ảnh</h3>
@@ -813,45 +665,6 @@ const App: React.FC = () => {
                 * Lưu ý: Mô hình AI sẽ cố gắng tạo hình ảnh theo tỷ lệ và độ phân giải đã chọn, nhưng không đảm bảo chính xác pixel.
               </p>
             </div>
-
-            {/* Video Generation Section */}
-            <div className="flex flex-col gap-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-700">
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Tạo video</h3>
-              {!hasPlatformApiKeySelected && <ApiKeyWarning onSelectApiKey={handleSelectPlatformApiKey} />}
-              <div className="flex items-center space-x-4">
-                <label htmlFor="video-resolution" className="text-gray-800 dark:text-gray-100 whitespace-nowrap">Độ phân giải:</label>
-                <select
-                  id="video-resolution"
-                  value={videoResolution}
-                  onChange={(e) => setVideoResolution(e.target.value as VideoResolution)}
-                  className="p-2 border rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 w-full"
-                  disabled={isLoading}
-                >
-                  <option value="720p">720p</option>
-                  <option value="1080p">1080p</option>
-                </select>
-              </div>
-              <div className="flex items-center space-x-4">
-                <label htmlFor="video-aspect-ratio" className="text-gray-800 dark:text-gray-100 whitespace-nowrap">Tỷ lệ khung hình:</label>
-                <select
-                  id="video-aspect-ratio"
-                  value={videoAspectRatio}
-                  onChange={(e) => setVideoAspectRatio(e.target.value as VideoAspectRatio)}
-                  className="p-2 border rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 w-full"
-                  disabled={isLoading}
-                >
-                  <option value="16:9">16:9 (ngang)</option>
-                  <option value="9:16">9:16 (dọc)</option>
-                </select>
-              </div>
-              <Button
-                onClick={handleGenerateVideo}
-                disabled={isLoading || !productImageBase64 || !textPrompt.trim() || !hasPlatformApiKeySelected}
-                fullWidth
-              >
-                Tạo quảng cáo video
-              </Button>
-            </div>
           </div>
         </div>
 
@@ -859,8 +672,6 @@ const App: React.FC = () => {
           outputUrl={generatedOutputUrl}
           mediaType={outputMediaType}
           groundingUrls={groundingUrls}
-          videoEnhancements={videoEnhancements} // Pass video enhancements
-          onPlayVoiceOver={handlePlayVoiceOver} // Pass play function
           onClearOutput={clearOutput}
         />
       </main>
